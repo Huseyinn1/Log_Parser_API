@@ -7,37 +7,26 @@ def syslog_zaman_bazli_analiz(df: pd.DataFrame) -> Dict[str, int]:
     hourly_counts = df.groupby('hour').size().to_dict()
     return {str(k): int(v) for k, v in hourly_counts.items()}
 
-def syslog_anomali_tespiti(df: pd.DataFrame) -> List[str]:
-    """Syslog'lar için anormal durumları tespit eder"""
-    mesajlar = []
+def syslog_anomali_tespiti(df: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Syslog kayıtlarındaki anomalileri tespit eder"""
+    anomali_raporu = []
     
-    # Auth logları için anomali kontrolü
-    if 'log_type' in df.columns and 'auth' in df['log_type'].values:
-        failed_logins = df[df['message'].str.contains('Failed password', na=False)]
-        if len(failed_logins) > 5:
-            mesajlar.append(f"Yüksek sayıda başarısız giriş denemesi: {len(failed_logins)}")
+    # Başarısız giriş denemelerini IP bazlı say
+    failed_logins = df[df['message'].str.contains('Failed password', na=False)]
+    if not failed_logins.empty:
+        ip_failures = failed_logins.groupby('ip').size()
+        total_failures = ip_failures.sum()
         
-        # Aynı IP'den çok sayıda başarısız giriş
-        if 'ip' in df.columns:
-            ip_failures = df[df['message'].str.contains('Failed password', na=False)]['ip'].value_counts()
-            suspicious_ips = ip_failures[ip_failures > 3]
-            if not suspicious_ips.empty:
-                mesajlar.append(f"Şüpheli IP'lerden çok sayıda başarısız giriş: {suspicious_ips.to_dict()}")
+        if total_failures > 5:
+            anomali_raporu.append({
+                "tip": "yuksek_basarisiz_giris",
+                "toplam_deneme": int(total_failures),
+                "ip_detaylari": {
+                    ip: int(count) for ip, count in ip_failures.items()
+                }
+            })
     
-    # Firewall logları için anomali kontrolü
-    if 'log_type' in df.columns and 'firewall' in df['log_type'].values:
-        blocked_ips = df[df['action'].str.contains('BLOCK', na=False)]['src_ip'].value_counts()
-        suspicious_ips = blocked_ips[blocked_ips > 5]
-        if not suspicious_ips.empty:
-            mesajlar.append(f"Çok sayıda engellenen IP: {suspicious_ips.to_dict()}")
-    
-    # Systemd logları için anomali kontrolü
-    if 'log_type' in df.columns and 'systemd' in df['log_type'].values:
-        failed_services = df[df['message'].str.contains('Failed', na=False)]
-        if len(failed_services) > 0:
-            mesajlar.append(f"Başarısız servis başlatma sayısı: {len(failed_services)}")
-    
-    return mesajlar
+    return anomali_raporu
 
 def syslog_ip_bazli_analiz(df: pd.DataFrame) -> Dict[str, Any]:
     """Syslog'lar için IP bazlı analiz yapar"""

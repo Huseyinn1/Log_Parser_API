@@ -79,7 +79,7 @@ async def analyze_apache_log(file: UploadFile = File(...)):
         
         if df.empty:
             raise HTTPException(status_code=400, detail="Apache log dosyası parse edilemedi veya boş.")
-            
+        
         result = {
             "log_type": "apache",
             "total_lines": len(df),
@@ -106,7 +106,7 @@ async def analyze_windows_log(file: UploadFile = File(...)):
         
         if df.empty:
             raise HTTPException(status_code=400, detail="Windows Event Log dosyası parse edilemedi veya boş.")
-            
+        
         result = {
             "log_type": "windows_event",
             "total_events": len(df),
