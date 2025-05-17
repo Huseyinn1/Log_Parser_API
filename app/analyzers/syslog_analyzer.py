@@ -62,12 +62,29 @@ def syslog_program_analizi(df: pd.DataFrame) -> Dict[str, int]:
 
 def syslog_analiz(df: pd.DataFrame, log_type: str) -> Dict[str, Any]:
     """Syslog'lar için genel analiz yapar"""
+    anomali_raporu = syslog_anomali_tespiti(df)
+    
+    # Anomali tespitinde bulunan IP'lerden örnek kayıtları seç
+    ornek_kayitlar = []
+    if anomali_raporu:
+        for anomali in anomali_raporu:
+            if anomali["tip"] == "yuksek_basarisiz_giris":
+                for ip in anomali["ip_detaylari"].keys():
+                    ip_kayitlari = df[df['ip'] == ip].head(1)
+                    if not ip_kayitlari.empty:
+                        ornek_kayitlar.extend(ip_kayitlari.to_dict(orient='records'))
+    
+    # Eğer anomali kaydı yoksa veya yeterli örnek bulunamadıysa, ilk 3 kaydı al
+    if len(ornek_kayitlar) < 3:
+        ek_kayitlar = df.head(3 - len(ornek_kayitlar)).to_dict(orient='records')
+        ornek_kayitlar.extend(ek_kayitlar)
+    
     return {
         "log_type": log_type,
         "toplam_kayit": len(df),
         "zaman_bazli_analiz": syslog_zaman_bazli_analiz(df),
-        "anomali_raporu": syslog_anomali_tespiti(df),
+        "anomali_raporu": anomali_raporu,
         "ip_bazli_analiz": syslog_ip_bazli_analiz(df),
         "program_analizi": syslog_program_analizi(df),
-        "ornek_kayitlar": df.head(3).to_dict(orient='records')
+        "ornek_kayitlar": ornek_kayitlar[:3]  # En fazla 3 örnek kayıt
     } 

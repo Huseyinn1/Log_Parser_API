@@ -80,13 +80,29 @@ async def analyze_apache_log(file: UploadFile = File(...)):
         if df.empty:
             raise HTTPException(status_code=400, detail="Apache log dosyası parse edilemedi veya boş.")
         
+        anomali_raporu = anomali_tespiti(df)
+        
+        # Anomali tespitinde bulunan IP'lerden örnek kayıtları seç
+        ornek_kayitlar = []
+        if anomali_raporu:
+            for anomali in anomali_raporu:
+                ip = anomali["ip"]
+                ip_kayitlari = df[df['remote_host'] == ip].head(1)
+                if not ip_kayitlari.empty:
+                    ornek_kayitlar.extend(ip_kayitlari.to_dict(orient='records'))
+        
+        # Eğer anomali kaydı yoksa veya yeterli örnek bulunamadıysa, ilk 3 kaydı al
+        if len(ornek_kayitlar) < 3:
+            ek_kayitlar = df.head(3 - len(ornek_kayitlar)).to_dict(orient='records')
+            ornek_kayitlar.extend(ek_kayitlar)
+        
         result = {
             "log_type": "apache",
-            "total_lines": len(df),
-            "sample_data": df.head(3).to_dict(orient='records'),
+            "toplam_kayit": len(df),
+            "ornek_kayitlar": ornek_kayitlar[:3],
             "status_counts": df['status'].value_counts().to_dict(),
             "zaman_bazli_analiz": zaman_bazli_analiz(df),
-            "anomali_raporu": anomali_tespiti(df),
+            "anomali_raporu": anomali_raporu,
             "ip_bazli_analiz": ip_bazli_analiz(df),
             "hata_analizi": hata_analizi(df)
         }
