@@ -27,6 +27,6 @@ samples
 *~
 .*.sw?
 .cache
-
+examples
 # macOS
 .DS_Store

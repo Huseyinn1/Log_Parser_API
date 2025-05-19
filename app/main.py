@@ -17,10 +17,14 @@ from app.analyzers.windows_analyzer import (
 )
 from app.parsers.syslog_parser import parse_syslog
 from app.analyzers.syslog_analyzer import syslog_analiz
+from app.parsers.firewall_parser import parse_firewall_log
+from app.analyzers.firewall_analyzer import firewall_analiz
+from app.parsers.application_parser import parse_application_log
+from app.analyzers.application_analyzer import application_analiz
 
 app = FastAPI(
     title="Log Analiz API",
-    description="Apache ve Windows log dosyalarını analiz eden API",
+    description="Apache, Windows, Firewall ve Application log dosyalarını analiz eden API",
     version="1.0.0"
 )
 
@@ -34,7 +38,7 @@ app.add_middleware(
 )
 
 @app.post("/parse-log")
-def parse_log_api(request: LogParseRequest, log_type: str = Query("apache", enum=["apache", "windows"])):
+def parse_log_api(request: LogParseRequest, log_type: str = Query("apache", enum=["apache", "windows", "firewall", "application"])):
     if log_type == "apache":
         df = parse_apache_log_pandas(request.log_content)
         if df.empty:
@@ -62,6 +66,16 @@ def parse_log_api(request: LogParseRequest, log_type: str = Query("apache", enum
             "ip_bazli_analiz": windows_ip_bazli_analiz(df),
             "guvenlik_analizi": windows_guvenlik_analizi(df)
         }
+    elif log_type == "firewall":
+        df = parse_firewall_log(request.log_content)
+        if df.empty:
+            raise HTTPException(status_code=400, detail="Firewall log içeriği parse edilemedi veya boş.")
+        response = firewall_analiz(df)
+    elif log_type == "application":
+        df = parse_application_log(request.log_content)
+        if df.empty:
+            raise HTTPException(status_code=400, detail="Application log içeriği parse edilemedi veya boş.")
+        response = application_analiz(df)
     else:
         raise HTTPException(status_code=400, detail="Desteklenmeyen log tipi.")
     
@@ -150,6 +164,42 @@ async def analyze_syslog(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Syslog dosyası parse edilemedi veya boş.")
             
         result = syslog_analiz(df, log_type)
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/analyze-firewall")
+async def analyze_firewall_log(file: UploadFile = File(...)):
+    """
+    Firewall log dosyasını analiz eder ve sonuçları JSON olarak döndürür.
+    """
+    try:
+        content = await file.read()
+        log_content = content.decode('utf-8')
+        df = parse_firewall_log(log_content)
+        
+        if df.empty:
+            raise HTTPException(status_code=400, detail="Firewall log dosyası parse edilemedi veya boş.")
+        
+        result = firewall_analiz(df)
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/analyze-application")
+async def analyze_application_log(file: UploadFile = File(...)):
+    """
+    Application log dosyasını analiz eder ve sonuçları JSON olarak döndürür.
+    """
+    try:
+        content = await file.read()
+        log_content = content.decode('utf-8')
+        df = parse_application_log(log_content)
+        
+        if df.empty:
+            raise HTTPException(status_code=400, detail="Application log dosyası parse edilemedi veya boş.")
+        
+        result = application_analiz(df)
         return result
     except Exception as e:
         return {"error": str(e)}
